@@ -4,13 +4,28 @@
 package ca.retrylife.pureviz;
 
 import java.awt.Color;
+import java.util.ArrayList;
 
 import PicoEngine.Window;
+import edu.wpi.first.wpilibj.geometry.Pose2d;
+import edu.wpi.first.wpilibj.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.geometry.Translation2d;
+import edu.wpi.first.wpilibj.util.Units;
+import io.github.frc5024.purepursuit.PurePursuitController;
+import io.github.frc5024.purepursuit.pathgen.Path;
 
 public class App implements Runnable {
 
     // GUI
     private Window window;
+
+    // Chassis
+    private Chassis chassis;
+
+    // PurePursuit
+    private boolean running = false;
+    private PurePursuitController controller;
+    private ArrayList<Translation2d> waypoints = new ArrayList<>();
 
     public static void main(String[] args) {
         new App().run();
@@ -18,13 +33,111 @@ public class App implements Runnable {
 
     App() {
 
+        // Add two waypoints to make system happy
+        waypoints.add(new Translation2d(4.0, 0.0));
+        waypoints.add(new Translation2d(5.0, 0.0));
+
         // Set up the window
-        window = new Window(800, 600, 100, 100, "PureViz");
+        window = new Window(800, 600, 50, 20, "PureViz");
         window.autoConfig(Color.white);
+        window.setAntiAlias(true);
+
+        // Set up chassis
+        chassis = new Chassis();
+
+        // Set up controller
+        controller = new PurePursuitController(new Path(waypoints.toArray(new Translation2d[waypoints.size()])), 0.2,
+                0.1, Units.inchesToMeters(26), 1.0);
     }
 
     @Override
     public void run() {
+
+        while (true) {
+
+            // Handle input
+
+            // Do the math
+            doMath();
+
+            // Render everything
+            synchronized (window) {
+                window.clear();
+                draw();
+
+                // Rest a bit
+                window.sleep(20);
+            }
+
+        }
+
+    }
+
+    public void handleMouseInput() {
+        if (window.getMouseClick() == 1) {
+            running = false;
+
+            // Get point
+            int mx = window.getMouseX();
+            int my = window.getMouseY();
+
+            // Convert points to percentages
+            double X = (mx/800) * 50;
+            double Y = (my/600) * 20;
+            Y -= 10;
+
+            // Add this point to the waypoints
+            waypoints.add(new Translation2d(X, Y));
+
+            // Rebuild the controller
+            controller = new PurePursuitController(new Path(waypoints.toArray(new Translation2d[waypoints.size()])),
+                    0.2, 0.1, Units.inchesToMeters(26), 1.0);
+
+            // Reset the chassis
+            chassis.reset();
+
+        }
+
+        if (window.getKeyCode() != -1) {
+            running = true;
+            System.out.println("running");
+        }
+    }
+
+    public void doMath() {
+
+        if (!running) {
+            return;
+        }
+
+        // Get chassis pose
+        Pose2d pose = chassis.getPose();
+
+        // Calculate controller output
+        Translation2d vec = controller.calculateHolonomic(pose);
+
+        // Determine the goal angle
+        Translation2d lastWaypoint = waypoints.get(waypoints.size() - 1);
+        Translation2d secondLastWaypoint = waypoints.get(waypoints.size() - 2);
+
+        double theta = Math.atan2(lastWaypoint.getY() - secondLastWaypoint.getY(),
+                lastWaypoint.getX() - secondLastWaypoint.getX());
+
+        // Set the chassis output
+        chassis.swerveDrive(vec, new Rotation2d(theta));
+
+    }
+
+    public void draw() {
+        // Draw each waypoint
+        for (Translation2d t : waypoints) {
+            int x = (int)((t.getX()/ 50) * 800);
+            int y = (int)((t.getY()/20)*600);
+            window.drawLine(x, y, x, y);
+        }
+
+        // Render the chassis
+        chassis.render(window);
 
     }
 }

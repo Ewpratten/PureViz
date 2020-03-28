@@ -29,6 +29,9 @@ dependencies {
     // Use JUnit test framework
     testImplementation 'junit:junit:4.12'
 
+    // WPILib
+    implementation("edu.wpi.first.wpilibj:wpilibj-java:+")
+
     // GameJ
     implementation 'com.github.ewpratten:picoengine:master-SNAPSHOT'
 
